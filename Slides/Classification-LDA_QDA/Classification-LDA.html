@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Classification with Linear Discriminant Analysis</title>
+    <meta charset="utf-8" />
+    <script src="libs/header-attrs/header-attrs.js"></script>
+    <link rel="stylesheet" href="xaringan-themer.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Classification with Linear Discriminant Analysis
+
+---
+
+
+
+
+
+
+&lt;style type="text/css"&gt;
+.red{ color: red; }
+.blue{ color: blue; }
+.huge {
+  font-size: 200%;
+}
+.large {
+  font-size: 150%;
+}
+.tiny {
+  font-size: 50%;
+}
+&lt;/style&gt;
+
+---
+class: center, middle
+
+# Classification with LDA
+
+---
+# LDA
+
+We have existing observations
+
+`$$(x_1, C_1), ... (x_n, C_n)$$`
+
+where the `\(C_i\)` are **categories**.
+
+--
+
+Given a new observation `\(x_{new}\)`, how do we predict `\(C_{new}\)`?
+
+--
+
+Come up with a "cutoff":  if $x_{new} &gt; $ cutoff, predict class A, if not, predict class B.
+
+---
+# LDA
+
+
+![](Classification-LDA_files/figure-html/unnamed-chunk-2-1.png)&lt;!-- --&gt;
+
+---
+# LDA
+
+Cutoff of 11:
+
+
+```
+## # A tibble: 4 x 3
+##   Class pred_class     n
+##   &lt;chr&gt; &lt;chr&gt;      &lt;int&gt;
+## 1 A     A             84
+## 2 A     B             16
+## 3 B     A             16
+## 4 B     B             84
+```
+
+---
+# LDA
+
+
+![](Classification-LDA_files/figure-html/unnamed-chunk-4-1.png)&lt;!-- --&gt;
+
+---
+# LDA
+
+Cutoff of 10:
+
+
+```r
+dat %&gt;%
+  mutate(
+    pred_class = case_when(
+      val &gt; 10 ~ "B",
+      TRUE ~ "A"
+    )
+  ) %&gt;%
+  count(Class, pred_class)
+```
+
+```
+## # A tibble: 4 x 3
+##   Class pred_class     n
+##   &lt;chr&gt; &lt;chr&gt;      &lt;int&gt;
+## 1 A     A             52
+## 2 A     B             48
+## 3 B     A              3
+## 4 B     B             97
+```
+
+---
+# LDA
+
+
+To perform **classification** with **Linear Discriminant Analysis**, we choose the *best dividing line* between the two classes.
+
+--
+
+.large[The Big Questions:]
+
+* What is our definition of **best**?
+
+* What if we allow the line to "wiggle"?
+
+
+---
+class: center, middle, inverse
+
+
+## Example
+
+
+---
+# Example
+
+Let's keep hanging out with the insurance dataset.
+
+Suppose we want to use information about insurance charges to predict whether someone is a smoker or not.
+
+
+```r
+ins &lt;- read_csv("https://www.dropbox.com/s/bocjjyo1ehr5auz/insurance.csv?dl=1")
+
+ins &lt;- ins %&gt;%
+  mutate(
+    smoker = factor(smoker)
+  ) %&gt;%
+  drop_na()
+```
+
+---
+class: center, middle
+
+
+## Quick Quiz
+
+#### What do we have to change?
+
+The model?
+
+The recipe?
+
+The workflow?
+
+The fit?
+
+---
+# Example
+
+Just the model needs to change, of course!
+
+
+
+
+
+&lt;code class ='r hljs remark-code'&gt;lda_mod &lt;- &lt;span style="background-color:#ffff7f"&gt;discrim_linear&lt;/span&gt;() %&gt;%&lt;br&gt;&amp;nbsp;&amp;nbsp;set_engine("&lt;span style="background-color:#ffff7f"&gt;MASS&lt;/span&gt;") %&gt;%&lt;br&gt;&amp;nbsp;&amp;nbsp;set_mode("classification")&lt;/code&gt;
+
+
+---
+# Example
+
+Fit our model:
+
+
+```r
+lda_fit_1 &lt;- lda_mod %&gt;%
+  fit(smoker ~ charges, data = ins)
+
+lda_fit_1$fit %&gt;% summary()
+```
+
+```
+##         Length Class  Mode     
+## prior   2      -none- numeric  
+## counts  2      -none- numeric  
+## means   2      -none- numeric  
+## scaling 1      -none- numeric  
+## lev     2      -none- character
+## svd     1      -none- numeric  
+## N       1      -none- numeric  
+## call    3      -none- call     
+## terms   3      terms  call     
+## xlevels 0      -none- list
+```
+
+---
+# Example
+
+
+```r
+lda_fit_1 
+```
+
+```
+## parsnip model object
+## 
+## Fit time:  0ms 
+## Call:
+## lda(smoker ~ charges, data = data)
+## 
+## Prior probabilities of groups:
+##     no    yes 
+## 0.7981 0.2019 
+## 
+## Group means:
+##     charges
+## no     7528
+## yes   31152
+## 
+## Coefficients of linear discriminants:
+##             LD1
+## charges 0.00014
+```
+
+---
+# Example
+
+
+```r
+preds &lt;- lda_fit_1 %&gt;% predict(ins)
+
+ins &lt;- ins %&gt;%
+  mutate(
+    pred_smoker = preds$.pred_class
+  )
+
+ins %&gt;%
+  accuracy(truth = smoker,
+           estimate = pred_smoker)
+```
+
+```
+## # A tibble: 1 x 3
+##   .metric  .estimator .estimate
+##   &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt;
+## 1 accuracy binary         0.921
+```
+
+
+
+---
+
+class: center, middle
+
+
+## What if we want to use more than one predictor?
+
+
+---
+# Example 2
+
+
+```r
+lda_fit_2 &lt;- lda_mod %&gt;%
+  fit(smoker ~ charges + age, data = ins)
+
+lda_fit_2
+```
+
+```
+## parsnip model object
+## 
+## Fit time:  0ms 
+## Call:
+## lda(smoker ~ charges + age, data = data)
+## 
+## Prior probabilities of groups:
+##     no    yes 
+## 0.7981 0.2019 
+## 
+## Group means:
+##     charges   age
+## no     7528 38.30
+## yes   31152 36.62
+## 
+## Coefficients of linear discriminants:
+##                LD1
+## charges  0.0001718
+## age     -0.0449953
+```
+
+---
+# Example
+
+
+```r
+lda_fit_2$fit$scaling
+```
+
+```
+##                LD1
+## charges  0.0001718
+## age     -0.0449953
+```
+
+--
+
+.center[Score = 0.001718 * charges + -0.0444 * age]
+
+--
+
+Predict "smoker" if Score &gt; 0
+
+---
+# Example
+
+![](Classification-LDA_files/figure-html/unnamed-chunk-13-1.png)&lt;!-- --&gt;
+
+---
+# Example
+
+Predict "smoker" if Score &gt; 0
+
+--
+
+.center[0 = 0.001718 * charges + -0.0444 * age]
+
+--
+
+.center[age = (0.00178/0.0444)*charges]
+
+---
+# Example
+
+
+```r
+lda_fit_2
+```
+
+```
+## parsnip model object
+## 
+## Fit time:  0ms 
+## Call:
+## lda(smoker ~ charges + age, data = data)
+## 
+## Prior probabilities of groups:
+##     no    yes 
+## 0.7981 0.2019 
+## 
+## Group means:
+##     charges   age
+## no     7528 38.30
+## yes   31152 36.62
+## 
+## Coefficients of linear discriminants:
+##                LD1
+## charges  0.0001718
+## age     -0.0449953
+```
+
+```r
+my_slope = lda_fit_2$fit$scaling[1]/(-1*lda_fit_2$fit$scaling[2])
+```
+
+---
+# Example
+
+![](Classification-LDA_files/figure-html/unnamed-chunk-15-1.png)&lt;!-- --&gt;
+
+---
+class: center, middle, inverse
+
+# Try it!
+# (you know the drill...)
+
+## Open **Activity-Classification-2.Rmd**
+#### Select the best LDA model for predicting smoker status
+#### Compare the accuracy to your KNN and Logistic Regression models.
+
+---
+class: center, middle, inverse
+
+# Quadratic Discriminant Analysis
+
+## One more time: wiggly style
+
+---
+# QDA
+
+What if we allow the separating line to be non-linear?
+
+
+
+
+&lt;code class ='r hljs remark-code'&gt;qda_mod &lt;- discrim_regularized(&lt;span style="background-color:#ffff7f"&gt;frac_common_cov = 0&lt;/span&gt;) %&gt;% &lt;br&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;set_engine('klaR') %&gt;% &lt;br&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;set_mode('classification')&lt;/code&gt;
+
+(i.e., we allow the data in the different categories to have different variances)
+
+---
+# QDA
+
+![](Classification-LDA_files/figure-html/unnamed-chunk-17-1.png)&lt;!-- --&gt;
+
+
+---
+# QDA
+
+![](Classification-LDA_files/figure-html/unnamed-chunk-18-1.png)&lt;!-- --&gt;
+
+---
+# QDA
+
+![](Classification-LDA_files/figure-html/unnamed-chunk-19-1.png)&lt;!-- --&gt;
+
+
+---
+class: inverse
+
+## Questions to ponder
+
+* What if we have a categorical variable where 99% of our values are Category A?
+
+--
+
+* What if we have a categorical variable with more than 2 categories?
+
+--
+
+* Are there other ways to do classification besides these **logistic regression** and **KNN** and **Discriminant Analysis**?
+
+---
+class: center, middle, inverse
+
+# Try it!
+
+## Open **Activity-Classification-2.Rmd** again
+#### Select the best QDA model
+#### Compare to prior models
+
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightLines": true,
+"highlightStyle": "github",
+"countIncrementalSlides": false,
+"ratio": "16:9"
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>

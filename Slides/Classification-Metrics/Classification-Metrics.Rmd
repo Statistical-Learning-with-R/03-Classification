@@ -1,0 +1,229 @@
+---
+title: "Classification Metrics"
+resource_files:
+- appforthat.jpg
+output:
+  xaringan::moon_reader:
+    css: xaringan-themer.css
+    lib_dir: libs
+    nature:
+      highlightLines: yes
+      highlightStyle: github
+      countIncrementalSlides: FALSE
+      ratio: '16:9'
+
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(tidymodels)
+library(flair)
+library(kknn)
+library(glmnet)
+```
+
+```{r xaringan-themer, include=FALSE}
+library(xaringanthemer)
+library(xaringanExtra)
+style_mono_light(
+  base_color = "#26116c",
+  text_bold_color = "#fd5e53",
+  title_slide_text_color = "#fff8e7",
+  background_color = "#fff8e7",
+  header_font_google = google_font("Roboto"),
+  text_font_google   = google_font("Roboto Condensed"),
+  code_font_google   = google_font("Droid Mono")
+)
+```
+
+```{css, echo = FALSE}
+.red{ color: red; }
+.blue{ color: blue; }
+.huge {
+  font-size: 200%;
+}
+.large {
+  font-size: 150%;
+}
+.tiny {
+  font-size: 50%;
+}
+```
+
+---
+class: center, middle
+
+# Setup
+
+---
+
+# Setup
+
+**Modeling steps:**
+
+1. **Clean** the data
+    + What do we do about `NA`'s?
+    + Convert categorical variables to **factors**
+    
+--
+    
+2. Establish a **model**
+    + Or **many** models to try?
+    + Do we need to **tune** any hyperparameters?
+    
+--
+    
+3. Establish a **recipe**
+    + Or **many** recipes to try?
+    + How will we **transform** our variables?
+    + Categorical to **dummy** variables?  (but not the response!)
+    + (data = full dataset)
+    
+--
+    
+4. Make **workflows**
+
+--
+
+5. Send the workflow to cross validation for **model selection**
+    + For comparing different *models* 
+    + For *tuning*
+    + For comparing different *recipes*
+    
+--
+    
+6. Send your **final model** to cross-validation for **final metrics**
+    + why do we cross-validate for final metrics?
+    
+--
+    
+7. Fit the **final model** on the **full dataset** - this is your finished product!
+
+
+
+---
+# Setup
+
+```{r, message = FALSE}
+ins <- read_csv("https://www.dropbox.com/s/bocjjyo1ehr5auz/insurance.csv?dl=1")
+
+ins <- ins %>%
+  mutate(
+    smoker = factor(smoker)
+  ) %>%
+  drop_na()
+
+knn_mod <- nearest_neighbor(neighbors = 5) %>%
+  set_engine("kknn") %>%
+  set_mode("classification")
+
+knn_recipe <- recipe(smoker ~ age + bmi + charges, 
+                     data = ins)
+
+knn_wflow <- workflow() %>%
+  add_recipe(knn_recipe) %>%
+  add_model(knn_mod)
+
+cvs <- vfold_cv(ins, v = 5)
+
+knn_fit <- knn_wflow %>%
+  fit_resamples(cvs)
+
+```
+
+---
+class: center, middle
+
+# Metric 1: Accuracy
+
+---
+# Accuracy
+
+What percent of our guesses were correct?
+
+```{r}
+knn_fit %>% collect_metrics()
+```
+
+---
+# Accuracy
+
+The problem:  Consider this data.
+
+```{r, echo = FALSE}
+set.seed(49802)
+sample(c("A", "B"), 100, prob = c(.01, .99), replace = TRUE)
+```
+--
+
+If I guess "B" every time, I'll have 98% accuracy!
+
+
+---
+class: center, middle
+
+# Metric 2: ROC
+
+---
+
+# ROC
+
+**ROC** = "reciever operating charateristic**  (ew)
+
+--
+
+**FALSE Positive Rate** = (how many A's did we say were B)/(how many did we say were "B" total)
+
+*How many did we misclassify as B?*
+
+--
+
+**True Positive Rate** = (how many B's did we say were B)/(how many B's are there total)
+
+*How many true B's did we miss?*
+--
+# ROC
+
+**ROC** = plots TP and FP across many **decision boundaries**
+
+--
+
+```{r}
+knn_final_fit <- knn_wflow %>%
+  fit(ins)
+
+ins <- ins %>%
+  mutate(
+    prob_nonsmoker = predict(knn_final_fit, ins, type = "prob")$.pred_no
+  )
+
+ins %>%
+  roc_curve(truth = smoker, prob_nonsmoker) %>%
+  autoplot()
+```
+
+
+---
+# ROC
+
+**GOOD:** The ROC curve is way above the line  (we can achieve a really good TP rate without sacrificing FP rate)
+
+**MEDIUM:** The ROC curve is on the line (FP/TP is a trade-off)
+
+**BAD:** The ROC curve is way below the line (we can't have good TP without bad FP)
+
+--
+
+**ROC-AUC** is the **area under the curve** - large values are good!
+
+---
+class: center, middle, inverse
+
+# Try it!
+
+## Open **Activity-Classification-2.Rmd** again
+#### Go to https://yardstick.tidymodels.org/articles/metric-types.html
+#### Scroll down to the list of metrics
+#### As a group, research **one** of the metrics that we haven't discussed in class, and compute it for some of your models.
+
+

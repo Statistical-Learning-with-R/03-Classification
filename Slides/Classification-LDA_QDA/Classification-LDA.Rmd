@@ -1,0 +1,429 @@
+---
+title: "Classification with Linear Discriminant Analysis"
+resource_files:
+- appforthat.jpg
+output:
+  xaringan::moon_reader:
+    css: xaringan-themer.css
+    lib_dir: libs
+    nature:
+      highlightLines: yes
+      highlightStyle: github
+      countIncrementalSlides: false
+      ratio: '16:9'
+
+---
+
+```{r setup, include=FALSE}
+options(htmltools.dir.version = FALSE, digits = 4, scipen=999)
+library(tidyverse)
+library(tidymodels)
+library(flair)
+library(kknn)
+library(glmnet)
+library(discrim)
+```
+
+```{r xaringan-themer, include=FALSE}
+library(xaringanthemer)
+library(xaringanExtra)
+style_mono_light(
+  base_color = "#26116c",
+  text_bold_color = "#fd5e53",
+  title_slide_text_color = "#fff8e7",
+  background_color = "#fff8e7",
+  header_font_google = google_font("Roboto"),
+  text_font_google   = google_font("Roboto Condensed"),
+  code_font_google   = google_font("Droid Mono")
+)
+```
+
+```{css, echo = FALSE}
+.red{ color: red; }
+.blue{ color: blue; }
+.huge {
+  font-size: 200%;
+}
+.large {
+  font-size: 150%;
+}
+.tiny {
+  font-size: 50%;
+}
+```
+
+---
+class: center, middle
+
+# Classification with LDA
+
+---
+# LDA
+
+We have existing observations
+
+$$(x_1, C_1), ... (x_n, C_n)$$
+
+where the $C_i$ are **categories**.
+
+--
+
+Given a new observation $x_{new}$, how do we predict $C_{new}$?
+
+--
+
+Come up with a "cutoff":  if $x_{new} > $ cutoff, predict class A, if not, predict class B.
+
+---
+# LDA
+
+
+```{r, echo = FALSE}
+dat <- tibble(
+  A = rnorm(100, 10),
+  B = rnorm(100, 12)
+) %>%
+  pivot_longer(everything(),
+               values_to = "val",
+               names_to = "Class")
+
+ggplot(dat, aes(x = val, fill = Class)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = 11)
+```
+
+---
+# LDA
+
+Cutoff of 11:
+
+```{r, echo = FALSE}
+dat %>%
+  mutate(
+    pred_class = case_when(
+      val > 11 ~ "B",
+      TRUE ~ "A"
+    )
+  ) %>%
+  count(Class, pred_class)
+```
+
+---
+# LDA
+
+
+```{r, echo = FALSE}
+ggplot(dat, aes(x = val, fill = Class)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = 10)
+```
+
+---
+# LDA
+
+Cutoff of 10:
+
+```{r}
+dat %>%
+  mutate(
+    pred_class = case_when(
+      val > 10 ~ "B",
+      TRUE ~ "A"
+    )
+  ) %>%
+  count(Class, pred_class)
+```
+
+---
+# LDA
+
+
+To perform **classification** with **Linear Discriminant Analysis**, we choose the *best dividing line* between the two classes.
+
+--
+
+.large[The Big Questions:]
+
+* What is our definition of **best**?
+
+* What if we allow the line to "wiggle"?
+
+
+---
+class: center, middle, inverse
+
+
+## Example
+
+
+---
+# Example
+
+Let's keep hanging out with the insurance dataset.
+
+Suppose we want to use information about insurance charges to predict whether someone is a smoker or not.
+
+```{r, message = FALSE}
+ins <- read_csv("https://www.dropbox.com/s/bocjjyo1ehr5auz/insurance.csv?dl=1")
+
+ins <- ins %>%
+  mutate(
+    smoker = factor(smoker)
+  ) %>%
+  drop_na()
+```
+
+---
+class: center, middle
+
+
+## Quick Quiz
+
+#### What do we have to change?
+
+The model?
+
+The recipe?
+
+The workflow?
+
+The fit?
+
+---
+# Example
+
+Just the model needs to change, of course!
+
+```{r set_mod, include = FALSE, eval = FALSE}
+lda_mod <- discrim_linear() %>%
+  set_engine("MASS") %>%
+  set_mode("classification")
+```
+
+
+```{r, echo = FALSE}
+decorate("set_mod") %>%
+  flair("discrim_linear") %>%
+  flair("MASS")
+```
+
+
+---
+# Example
+
+Fit our model:
+
+```{r}
+lda_fit_1 <- lda_mod %>%
+  fit(smoker ~ charges, data = ins)
+
+lda_fit_1$fit %>% summary()
+```
+
+---
+# Example
+
+```{r}
+lda_fit_1 
+```
+
+---
+# Example
+
+```{r}
+preds <- lda_fit_1 %>% predict(ins)
+
+ins <- ins %>%
+  mutate(
+    pred_smoker = preds$.pred_class
+  )
+
+ins %>%
+  accuracy(truth = smoker,
+           estimate = pred_smoker)
+```
+
+
+
+---
+
+class: center, middle
+
+
+## What if we want to use more than one predictor?
+
+
+---
+# Example 2
+
+```{r}
+lda_fit_2 <- lda_mod %>%
+  fit(smoker ~ charges + age, data = ins)
+
+lda_fit_2
+```
+
+---
+# Example
+
+```{r}
+lda_fit_2$fit$scaling
+```
+
+--
+
+.center[Score = 0.001718 * charges + -0.0444 * age]
+
+--
+
+Predict "smoker" if Score > 0
+
+---
+# Example
+
+```{r, echo = FALSE}
+ins %>%
+  ggplot(aes(x = charges, y = age, color = smoker)) +
+  geom_point()
+```
+
+---
+# Example
+
+Predict "smoker" if Score > 0
+
+--
+
+.center[0 = 0.001718 * charges + -0.0444 * age]
+
+--
+
+.center[age = (0.00178/0.0444)*charges]
+
+---
+# Example
+
+```{r}
+lda_fit_2
+
+my_slope = lda_fit_2$fit$scaling[1]/(-1*lda_fit_2$fit$scaling[2])
+```
+
+---
+# Example
+
+```{r, echo = FALSE}
+
+ins %>%
+  ggplot(aes(x = charges, y = age, color = smoker)) +
+  geom_point() +
+  geom_abline(aes(slope = my_slope, intercept = 0))
+```
+
+---
+class: center, middle, inverse
+
+# Try it!
+# (you know the drill...)
+
+## Open **Activity-Classification-2.Rmd**
+#### Select the best LDA model for predicting smoker status
+#### Compare the accuracy to your KNN and Logistic Regression models.
+
+---
+class: center, middle, inverse
+
+# Quadratic Discriminant Analysis
+
+## One more time: wiggly style
+
+---
+# QDA
+
+What if we allow the separating line to be non-linear?
+
+```{r qda_mod, include = FALSE}
+qda_mod <- discrim_regularized(frac_common_cov = 0) %>% 
+             set_engine('klaR') %>% 
+             set_mode('classification')
+```
+
+```{r, echo = FALSE}
+
+decorate("qda_mod") %>%
+  flair("frac_common_cov = 0")
+```
+
+(i.e., we allow the data in the different categories to have different variances)
+
+---
+# QDA
+
+```{r, echo = FALSE}
+dat <- tibble(
+  A = rnorm(100, 10, 5),
+  B = rnorm(100, 15, 1)
+) %>%
+  pivot_longer(everything(),
+               values_to = "val",
+               names_to = "Class")
+
+ggplot(dat, aes(x = val, fill = Class)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = 11)
+```
+
+
+---
+# QDA
+
+```{r, echo = FALSE}
+dat <- tibble(
+  V1 = c(rnorm(100, 10, 5), rnorm(100, 37, 18)),
+  V2 = c(rnorm(100, 15, 1), rnorm(100, 30, 9)),
+  Class = factor(c(rep("A", 100), rep("B", 100)))
+) 
+
+dat %>%
+  ggplot(aes(x = V1, y = V2, col = Class)) +
+  geom_point()
+```
+
+---
+# QDA
+
+```{r, echo = FALSE}
+qda_wflow <- workflow() %>%
+  add_recipe(recipe(Class ~ V1 + V2, data = dat)) %>%
+  add_model(qda_mod) %>%
+  fit(dat)
+
+qda_wflow %>%
+  horus::viz_decision_boundary(dat)
+```
+
+
+---
+class: inverse
+
+## Questions to ponder
+
+* What if we have a categorical variable where 99% of our values are Category A?
+
+--
+
+* What if we have a categorical variable with more than 2 categories?
+
+--
+
+* Are there other ways to do classification besides these **logistic regression** and **KNN** and **Discriminant Analysis**?
+
+---
+class: center, middle, inverse
+
+# Try it!
+
+## Open **Activity-Classification-2.Rmd** again
+#### Select the best QDA model
+#### Compare to prior models
+

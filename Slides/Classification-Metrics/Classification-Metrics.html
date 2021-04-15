@@ -66,7 +66,7 @@ class: center, middle
     
 4. Make **workflows**
 
---
+---
 
 5. Send the workflow to cross validation for **model selection**
     + For comparing different *models* 
@@ -133,8 +133,8 @@ knn_fit %&gt;% collect_metrics()
 ## # A tibble: 2 x 5
 ##   .metric  .estimator  mean     n std_err
 ##   &lt;chr&gt;    &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt;
-## 1 accuracy binary     0.961     5 0.00946
-## 2 roc_auc  binary     0.989     5 0.00386
+## 1 accuracy binary     0.965     5 0.00359
+## 2 roc_auc  binary     0.992     5 0.00417
 ```
 
 ---
@@ -178,12 +178,15 @@ class: center, middle
 **True Positive Rate** = (how many B's did we say were B)/(how many B's are there total)
 
 *How many true B's did we miss?*
---
+
+---
 # ROC
 
 **ROC** = plots TP and FP across many **decision boundaries**
 
 --
+
+First, find the probability that the model assigns each observation for the **first** category of your categorical variable.  (Generally, this is alphabetical:)
 
 
 ```r
@@ -194,13 +197,19 @@ ins &lt;- ins %&gt;%
   mutate(
     prob_nonsmoker = predict(knn_final_fit, ins, type = "prob")$.pred_no
   )
+```
 
+---
+# ROC
+
+
+```r
 ins %&gt;%
   roc_curve(truth = smoker, prob_nonsmoker) %&gt;%
   autoplot()
 ```
 
-![](Classification-Metrics_files/figure-html/unnamed-chunk-5-1.png)&lt;!-- --&gt;
+![](Classification-Metrics_files/figure-html/unnamed-chunk-6-1.png)&lt;!-- --&gt;
 
 
 ---
@@ -222,7 +231,7 @@ class: center, middle, inverse
 # Try it!
 
 ## Open **Activity-Classification-2.Rmd** again
-#### Go to https://yardstick.tidymodels.org/articles/metric-types.html
+#### Go to **https://yardstick.tidymodels.org/articles/metric-types.html**
 #### Scroll down to the list of metrics
 #### As a group, research **one** of the metrics that we haven't discussed in class, and compute it for some of your models.
 

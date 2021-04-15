@@ -10,7 +10,6 @@ templar::versions_multilingual()
 ```{r setup, include=FALSE}
 library(tidyverse)
 library(tidymodels)
-library(flair)
 library(kknn)
 library(glmnet)
 library(discrim)
@@ -98,6 +97,11 @@ ins %>%
   geom_abline(aes(slope = my_slope, intercept = 0))
 ```
 
+#### Your turn:
+
+Find the best LDA model to predict smoker status.
+
+How does it compare to the Logistic Regression and KNN approaches?
 
 # Quadratic Discriminant Analysis
 
@@ -148,6 +152,10 @@ qda_wflow %>%
 ```
 
 #### Your turn:
+
+Find the best QDA model to predict smoker status.
+
+How does it compare to the LDA, Logistic Regression, and KNN approaches?
 
 # Metrics
 

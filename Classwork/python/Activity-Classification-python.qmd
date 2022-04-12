@@ -1,0 +1,139 @@
+---
+title: "Classification: KNN and Logistic Regression"
+author: "YOUR NAME HERE"
+format: 
+  html:
+    code-fold: true
+    code-line-numbers: true
+    code-tools: true
+    self-contained: true
+editor: visual
+execute:
+  message: false
+jupyter: python3
+---
+
+## Setup
+
+Declare your libraries:
+
+
+```{python}
+#| label: libraries-py
+#| include: false
+import pandas as pd
+from sklearn.pipeline import Pipeline, make_pipeline
+from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.neighbors import KNeighborsRegressor, KNeighborsClassifier
+from sklearn.metrics import r2_score, confusion_matrix
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.compose import make_column_transformer
+from sklearn.model_selection import cross_val_score, GridSearchCV, KFold
+import seaborn as sns
+import matplotlib.pyplot as plt
+```
+
+## KNN
+
+#### Code from Lecture
+
+
+```{python}
+ins = pd.read_csv("https://www.dropbox.com/s/bocjjyo1ehr5auz/insurance.csv?dl=1")
+ins.head()
+```
+
+
+```{python}
+ins["smoker"] = ins["smoker"].astype("category")
+ins = ins.dropna()
+```
+
+
+
+
+
+```{python}
+knn_mod = KNeighborsClassifier(n_neighbors = 5)
+```
+
+```{python}
+
+workflow_1 = make_pipeline(
+  knn_mod
+)
+
+workflow_1.fit(ins[["charges"]], ins["smoker"])
+
+preds = workflow_1.predict(ins[["charges"]])
+
+confusion_matrix(ins["smoker"], preds)
+```
+
+#### Your tasks
+
+Select the best KNN model for predicting smoker status
+What metrics does the cross-validation process automatically output?
+
+## Logistic Regression
+
+#### Code from lecture:
+
+
+```{python}
+logit_mod = LogisticRegression(penalty = "none")
+```
+
+```{python}
+
+ct = make_column_transformer(
+    (StandardScalar(), ["region"]),
+    remainder="drop"
+)
+
+workflow_2 = make_pipeline(
+  ct,
+  logit_mod
+)
+
+workflow_2.fit(ins[["charges"]], ins["smoker"])
+
+workflow_2.named_steps['logisticregression'].coef_
+
+ins["preds"] = workflow_2.predict(ins[["charges"]])
+
+confusion_matrix(ins["smoker"], preds)
+```
+
+```{python}
+
+ins["pred_prob_yes"] = workflow_2.predict_proba(ins)[:,1]
+
+smoker_yes = ins[ins["smoker"] == "yes"]
+smoker_no = ins[ins["smoker"] == "no"]
+
+sns.histplot(x=smoker_yes["pred_prob_yes"], color="skyblue", label="Yes", kde=True)
+sns.histplot(x=smoker_no["pred_prob_yes"], color="red", label="Yes", kde=True)
+
+plt.show()
+```
+
+```{python}
+(ins["preds"] == ins["smoker"]).sum()/431
+
+```
+
+
+
+
+
+
+
+What percentage did we get correct?
+
+
+#### Your tasks
+
+Select the best logistic regression model for predicting smoker status
+Report the cross-validated metrics - how do they compare to KNN?
+

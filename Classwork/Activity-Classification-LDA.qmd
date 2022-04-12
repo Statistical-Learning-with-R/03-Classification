@@ -1,0 +1,223 @@
+---
+title: "Classification: LDA and QDA"
+author: "YOUR NAME HERE"
+format: 
+  html:
+    code-fold: true
+    code-line-numbers: true
+    code-tools: true
+    self-contained: true
+editor: visual
+execute:
+  message: false
+---
+
+```{r, eval = TRUE, version = "none"}
+templar::versions_quarto_multilingual(global_eval = FALSE, to_jupyter = TRUE, warn_edit = FALSE)
+```
+
+## Setup
+
+Declare your libraries:
+
+```{r, version = "R"}
+#| label: libraries-r
+#| include: false
+library(tidyverse)
+library(tidymodels)
+library(glmnet)
+library(discrim)
+```
+
+```{python, version = "python"}
+#| label: libraries-py
+#| include: false
+import pandas as pd
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+
+from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.neighbors import KNeighborsRegressor, KNeighborsClassifier
+
+from sklearn.metrics import r2_score, confusion_matrix
+
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.compose import make_column_transformer
+from sklearn.pipeline import Pipeline, make_pipeline
+
+from sklearn.model_selection import cross_val_score, GridSearchCV, KFold
+
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
+```
+
+
+# LDA
+
+```{r, version = "R"}
+ins <- read_csv("https://www.dropbox.com/s/bocjjyo1ehr5auz/insurance.csv?dl=1")
+
+ins <- ins %>%
+  mutate(
+    smoker = factor(smoker)
+  ) %>%
+  drop_na()
+```
+
+```{python, version = "python"}
+ins = pd.read_csv("https://www.dropbox.com/s/bocjjyo1ehr5auz/insurance.csv?dl=1")
+ins.head()
+```
+
+
+```{python, version = "python"}
+ins["smoker"] = ins["smoker"].astype("category")
+ins = ins.dropna()
+```
+
+
+```{r, version = "R"}
+lda_mod <- discrim_linear() %>%
+  set_engine("MASS") %>%
+  set_mode("classification")
+```
+
+```{python, version = "python"}
+lda_mod = LinearDiscriminantAnalysis()
+```
+
+
+```{r, version = "R"}
+lda_fit_1 <- lda_mod %>%
+  fit(smoker ~ charges, data = ins)
+
+lda_fit_1$fit %>% summary()
+```
+
+```{python, version = "python"}
+lda_mod.fit(ins[["charges"]], ins["smoker"])
+
+lda_mod.coef_
+lda_mod.scalings_
+```
+
+
+```{r, version = "R"}
+preds <- lda_fit_1 %>% predict(ins)
+
+ins <- ins %>%
+  mutate(
+    pred_smoker = preds$.pred_class
+  )
+
+ins %>%
+  accuracy(truth = smoker,
+           estimate = pred_smoker)
+```
+
+```{python, version = "python"}
+preds = lda_mod.predict(ins[["charges"]])
+
+(preds == ins["smoker"]).mean()
+
+
+```
+
+```{r, version = "R"}
+lda_fit_2 <- lda_mod %>%
+  fit(smoker ~ charges + age, data = ins)
+
+lda_fit_2
+```
+
+
+```{python, version = "python"}
+lda_mod_2 = LinearDiscriminantAnalysis()
+
+lda_mod_2.fit(ins[["charges", "age"]], ins["smoker"])
+
+lda_mod_2.coef_
+lda_mod_2.scalings_
+```
+
+```{python, version = "python"}
+sns.lmplot( x="charges", y="age", data=ins, fit_reg=False, hue='smoker', legend=False)
+
+
+plt.legend(loc='lower right')
+plt.show()
+```
+
+```{python, version = "python"}
+
+slope = lda_mod_2.scalings_[0]/(-1*lda_mod_2.scalings_[1])
+
+sns.lmplot( x="charges", y="age", data=ins, fit_reg=False, hue='smoker', legend=False)
+plt.plot([500, 20000], [slope*500, slope*20000], linewidth=2)
+
+plt.legend(loc='lower right')
+plt.show()
+
+```
+
+
+```{r, version = "R"}
+lda_fit_2$fit$scaling
+```
+
+```{r, version = "R"}
+ins %>%
+  ggplot(aes(x = charges, y = age, color = smoker)) +
+  geom_point()
+```
+
+```{r, version = "R"}
+lda_fit_2
+
+my_slope = lda_fit_2$fit$scaling[1]/(-1*lda_fit_2$fit$scaling[2])
+```
+
+
+```{r, version = "R"}
+
+ins %>%
+  ggplot(aes(x = charges, y = age, color = smoker)) +
+  geom_point() +
+  geom_abline(aes(slope = my_slope, intercept = 0))
+```
+
+#### Your turn:
+
+Use cross-validation to find the best LDA model to predict smoker status.
+
+How does it compare to the Logistic Regression and KNN approaches?
+
+# Quadratic Discriminant Analysis
+
+#### Code:
+
+```{r, version = "R"}
+qda_mod <- discrim_regularized(frac_common_cov = 0) %>% 
+             set_engine('klaR') %>% 
+             set_mode('classification')
+```
+
+```{python, version = "python"}
+qda_mod = QuadraticDiscriminantAnalysis()
+```
+
+
+#### Your turn:
+
+Use Cross-Validation to find the best QDA model to predict smoker status.
+
+How does it compare to the LDA, Logistic Regression, and KNN approaches?
+
+# Metrics
+
+https://yardstick.tidymodels.org/articles/metric-types.html
+
+
+

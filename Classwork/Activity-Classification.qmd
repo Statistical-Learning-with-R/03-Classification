@@ -1,0 +1,256 @@
+---
+title: "Classification: KNN and Logistic Regression"
+author: "YOUR NAME HERE"
+format: 
+  html:
+    code-fold: true
+    code-line-numbers: true
+    code-tools: true
+    self-contained: true
+editor: visual
+execute:
+  message: false
+---
+
+```{r, eval = TRUE, version = "none"}
+templar::versions_quarto_multilingual(global_eval = FALSE, to_jupyter = TRUE, warn_edit = FALSE)
+```
+
+## Setup
+
+Declare your libraries:
+
+```{r, version = "R"}
+#| label: libraries-r
+#| include: false
+library(tidyverse)
+library(tidymodels)
+library(glmnet)
+```
+
+```{python, version = "python"}
+#| label: libraries-py
+#| include: false
+import pandas as pd
+from sklearn.pipeline import Pipeline, make_pipeline
+from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.neighbors import KNeighborsRegressor, KNeighborsClassifier
+from sklearn.metrics import r2_score, confusion_matrix
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.compose import make_column_transformer
+from sklearn.model_selection import cross_val_score, GridSearchCV, KFold
+import seaborn as sns
+import matplotlib.pyplot as plt
+```
+
+## KNN
+
+
+#### Code from Lecture
+
+```{r, version = "R"}
+ins <- read_csv("https://www.dropbox.com/s/bocjjyo1ehr5auz/insurance.csv?dl=1")
+head(ins)
+```
+
+```{python, version = "python"}
+ins = pd.read_csv("https://www.dropbox.com/s/bocjjyo1ehr5auz/insurance.csv?dl=1")
+ins.head()
+```
+
+```{r, version = "R"}
+ins <- ins %>%
+  mutate(
+    smoker = factor(smoker)
+  ) %>%
+  drop_na()
+```
+
+```{python, version = "python"}
+ins["smoker"] = ins["smoker"].astype("category")
+ins = ins.dropna()
+```
+
+
+```{r, version = "R"}
+knn_mod <- nearest_neighbor(neighbors = 5) %>%
+  set_engine("kknn") %>%
+  set_mode("classification")
+```
+
+```{r, version = "R"}
+recipe_1 <- recipe(smoker ~ charges, data = ins)
+
+workflow_1 <- workflow() %>%
+  add_model(knn_mod) %>%
+  add_recipe(recipe_1)
+```
+
+```{r, version = "R"}
+knn_fit_1 <- workflow_1 %>%
+  fit(ins)
+
+knn_fit_1$fit %>% extract_fit_parsnip()
+```
+
+```{r, version = "R"}
+ins %>%
+  mutate(
+    preds = predict(knn_fit_1, ins)$.pred_class
+  ) %>%
+  conf_mat(truth = smoker,
+           estimate = preds)
+```
+
+
+```{python, version = "python"}
+knn_mod = KNeighborsClassifier(n_neighbors = 5)
+```
+
+```{python, version = "python"}
+
+workflow_1 = make_pipeline(
+  knn_mod
+)
+
+workflow_1.fit(ins[["charges"]], ins["smoker"])
+
+preds = workflow_1.predict(ins[["charges"]])
+
+confusion_matrix(ins["smoker"], preds)
+```
+
+
+
+
+
+#### Your tasks
+
+Select the best KNN model for predicting smoker status
+What metrics does the cross-validation process automatically output?
+
+
+## Logistic Regression
+
+
+#### Code from lecture:
+
+```{r, version = "R"}
+logit_mod <- logistic_reg() %>%
+  set_mode("classification") %>%
+  set_engine("glm")
+```
+
+
+```{python, version = "python"}
+logit_mod = LogisticRegression(penalty = "none")
+```
+
+```{python, version = "python"}
+
+ct = make_column_transformer(
+    (StandardScalar(), ["region"]),
+    remainder="drop"
+)
+
+workflow_2 = make_pipeline(
+  ct,
+  logit_mod
+)
+
+workflow_2.fit(ins[["charges"]], ins["smoker"])
+
+workflow_2.named_steps['logisticregression'].coef_
+
+ins["preds"] = workflow_2.predict(ins[["charges"]])
+
+confusion_matrix(ins["smoker"], preds)
+```
+
+
+```{python, version = "python"}
+
+ins["pred_prob_yes"] = workflow_2.predict_proba(ins)[:,1]
+
+smoker_yes = ins[ins["smoker"] == "yes"]
+smoker_no = ins[ins["smoker"] == "no"]
+
+sns.histplot(x=smoker_yes["pred_prob_yes"], color="skyblue", label="Yes", kde=True)
+sns.histplot(x=smoker_no["pred_prob_yes"], color="red", label="Yes", kde=True)
+
+plt.show()
+```
+
+```{python, version = "python"}
+(ins["preds"] == ins["smoker"]).sum()/431
+
+```
+
+
+```{r, version = "R"}
+rec_2 <- recipe(smoker ~ charges, data = ins) %>%
+  step_normalize(all_numeric_predictors())
+
+
+ins_wflow_logit <- workflow() %>%
+  add_recipe(rec_2) %>%
+  add_model(logit_mod)
+
+ins_fit <- ins_wflow_logit %>%
+  fit(ins)
+
+ins_fit %>% pull_workflow_fit() %>% tidy()
+```
+
+```{r, version = "R"}
+preds <- ins_fit %>% predict(ins)
+preds
+```
+
+
+```{r, version = "R"}
+ins_fit %>% predict(ins, type = "raw")
+```
+
+
+```{r, version = "R"}
+ins_fit %>% predict(ins, type = "prob")
+```
+
+```{r, version = "R"}
+pred_probs = ins_fit %>% predict(ins, type = "prob")
+
+ins %>%
+  mutate(
+    pred_probs = pred_probs$.pred_yes
+  ) %>%
+  ggplot(aes(y = pred_probs, x = charges, color = smoker)) +
+  geom_point()
+```
+
+
+```{r, version = "R"}
+ins <- ins %>%
+  mutate(
+    predicted_smoker = predict(ins_fit, ins)$.pred_class
+  ) 
+
+ins %>%
+  conf_mat(truth = smoker,
+                   estimate = predicted_smoker)
+```
+
+What percentage did we get correct?
+
+
+```{r, version = "R"}
+ins %>%
+  accuracy(truth = smoker,
+           estimate = predicted_smoker)
+```
+
+#### Your tasks
+
+Select the best logistic regression model for predicting smoker status
+Report the cross-validated metrics - how do they compare to KNN?
+

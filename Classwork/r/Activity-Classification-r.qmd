@@ -1,28 +1,46 @@
 ---
-title: "Classification with KNN and Logistic Regression"
+title: "Classification: KNN and Logistic Regression"
 author: "YOUR NAME HERE"
-output: html_document
+format: 
+  html:
+    code-fold: true
+    code-line-numbers: true
+    code-tools: true
+    self-contained: true
+editor: visual
+execute:
+  message: false
 ---
 
-```{r, include = FALSE}
-templar::versions_multilingual()
-```
+## Setup
 
-```{r setup, include=FALSE}
+Declare your libraries:
+
+```{r}
+#| label: libraries-r
+#| include: false
 library(tidyverse)
 library(tidymodels)
-library(kknn)
 library(glmnet)
 ```
 
-## KNN
 
+## KNN
 
 #### Code from Lecture
 
-```{r, message = FALSE}
+```{r}
 ins <- read_csv("https://www.dropbox.com/s/bocjjyo1ehr5auz/insurance.csv?dl=1")
 head(ins)
+```
+
+
+```{r}
+ins <- ins %>%
+  mutate(
+    smoker = factor(smoker)
+  ) %>%
+  drop_na()
 ```
 
 
@@ -33,19 +51,29 @@ knn_mod <- nearest_neighbor(neighbors = 5) %>%
 ```
 
 ```{r}
-ins <- ins %>%
-  mutate(
-    smoker = factor(smoker)
-  ) %>%
-  drop_na()
+recipe_1 <- recipe(smoker ~ charges, data = ins)
+
+workflow_1 <- workflow() %>%
+  add_model(knn_mod) %>%
+  add_recipe(recipe_1)
 ```
 
 ```{r}
-knn_fit_1 <- knn_mod %>%
-  fit(smoker ~ charges, data = ins)
+knn_fit_1 <- workflow_1 %>%
+  fit(ins)
 
-knn_fit_1$fit %>% summary()
+knn_fit_1$fit %>% extract_fit_parsnip()
 ```
+
+```{r}
+ins %>%
+  mutate(
+    preds = predict(knn_fit_1, ins)$.pred_class
+  ) %>%
+  conf_mat(truth = smoker,
+           estimate = preds)
+```
+
 
 
 #### Your tasks
@@ -53,9 +81,7 @@ knn_fit_1$fit %>% summary()
 Select the best KNN model for predicting smoker status
 What metrics does the cross-validation process automatically output?
 
-
 ## Logistic Regression
-
 
 #### Code from lecture:
 
@@ -65,20 +91,22 @@ logit_mod <- logistic_reg() %>%
   set_engine("glm")
 ```
 
-```{r}
-ins_rec <- recipe(smoker ~ charges, data = ins) %>%
-  step_normalize(all_numeric())
-```
+
+
+
 
 ```{r}
+rec_2 <- recipe(smoker ~ charges, data = ins) %>%
+  step_normalize(all_numeric_predictors())
+
 ins_wflow_logit <- workflow() %>%
-  add_recipe(ins_rec) %>%
+  add_recipe(rec_2) %>%
   add_model(logit_mod)
 
 ins_fit <- ins_wflow_logit %>%
   fit(ins)
 
-ins_fit %>% pull_workflow_fit()
+ins_fit %>% pull_workflow_fit() %>% tidy()
 ```
 
 ```{r}
@@ -86,11 +114,9 @@ preds <- ins_fit %>% predict(ins)
 preds
 ```
 
-
 ```{r}
 ins_fit %>% predict(ins, type = "raw")
 ```
-
 
 ```{r}
 ins_fit %>% predict(ins, type = "prob")
@@ -107,31 +133,18 @@ ins %>%
   geom_point()
 ```
 
-
 ```{r}
-preds <- ins_fit %>% predict(ins)
-
 ins <- ins %>%
   mutate(
-    predicted_smoker = preds$.pred_class
+    predicted_smoker = predict(ins_fit, ins)$.pred_class
   ) 
 
-ins %>% count(predicted_smoker, smoker)
+ins %>%
+  conf_mat(truth = smoker,
+                   estimate = predicted_smoker)
 ```
 
 What percentage did we get correct?
-
-```{r}
-ins %>%
-  mutate(
-    correct = (predicted_smoker == smoker)
-  ) %>%
-  count(correct) %>%
-  mutate(
-    pct = n/sum(n)
-  )
-```
-
 
 ```{r}
 ins %>%

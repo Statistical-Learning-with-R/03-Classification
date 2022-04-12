@@ -1,0 +1,233 @@
+---
+title: "Classification: LDA and QDA"
+author: "YOUR NAME HERE"
+format: 
+  html:
+    code-fold: true
+    code-line-numbers: true
+    code-tools: true
+    self-contained: true
+editor: visual
+execute:
+  message: false
+jupyter: python3
+---
+
+## Setup
+
+Declare your libraries:
+
+
+```{python}
+#| label: libraries-py
+#| include: false
+import pandas as pd
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.neighbors import KNeighborsRegressor, KNeighborsClassifier
+
+from sklearn import metrics
+
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.compose import make_column_transformer
+from sklearn.pipeline import Pipeline, make_pipeline
+
+from sklearn.model_selection import cross_val_score, GridSearchCV, KFold
+
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
+```
+
+# LDA
+
+In this lab, we will use medical data to predict the likelihood of a person experiencing an exercise-induced heart attack.  
+
+Our dataset consists of clinical data from patients who entered the hospital complaining of chest pain ("angina") during exercise.  The information collected includes:
+
+* `age` : Age of the patient
+
+* `sex` : Sex of the patient
+
+* `cp` : Chest Pain type
+
+    + Value 1: typical angina
+    + Value 2: atypical angina
+    + Value 3: non-anginal pain
+    + Value 4: asymptomatic
+    
+* `trtbps` : resting blood pressure (in mm Hg)
+
+* `chol` : cholesteral in mg/dl fetched via BMI sensor
+
+* `restecg` : resting electrocardiographic results
+
+    + Value 0: normal
+    + Value 1: having ST-T wave abnormality (T wave inversions and/or ST elevation or depression of > 0.05 mV)
+    + Value 2: showing probable or definite left ventricular hypertrophy by Estes' criteria
+
+* `thalach` : maximum heart rate achieved during exercise
+
+* `output` : the doctor's diagnosis of whether the patient is at risk for a heart attack
+    + 0 = not at risk of heart attack 
+    + 1 = at risk of heart attack
+
+Although it is not a formal question on this assignment, you should begin by reading in the dataset and briefly exploring and summarizing the data, and by adjusting any variables that need cleaning.
+
+
+```{python}
+ha = pd.read_csv("https://www.dropbox.com/s/aohbr6yb9ifmc8w/heart_attack.csv?dl=1")
+ha.head()
+```
+
+
+
+```{python}
+ha["sex"] = ha["sex"].astype("category")
+ha["cp"] = ha["cp"].astype("category")
+ha["restecg"] = ha["restecg"].astype("category")
+ha["output"] = ha["output"].astype("category")
+ha.output.cat.categories = [1,0] # make 1 be "at risk"
+
+ha = ha.dropna()
+```
+
+# Part One: Fitting Models
+
+This section asks you to create a final best model for each of the model types studied this week.  For each, you should:
+
+* Find the best model based on `roc.auc` for predicting the `target` variable.
+
+* Output a **confusion matrix**; that is, the counts of how many observations fell into each predicted class for each true class.  (Hint: Code is provided from lecture; alternatively, `conf_mat` is a nice shortcut function for this task.)
+
+* Report the (cross-validated!) `roc.auc` metric.
+
+* Fit the final model.
+
+* (Where applicable) Interpret the coefficients and/or estimates produced by the model fit.
+
+You should certainly try multiple model recipes to find the best model. However, you do not need to include these attempts in your writeup.  You *should* include any hyperparameter tuning steps in your writeup, though.
+
+#### Q1: KNN
+
+#### Q2: Logistic Regression
+
+#### Q3: LDA
+
+#### Q4: QDA
+
+#### Q5: Interpretation
+
+Which predictors were most important to predicting heart attack risk?
+
+#### Q6:  ROC Curve
+
+Plot the ROC Curve for your favorite model from Q1-4.
+
+
+```{python}
+preds = model_final.predict(ha[["?????"]], ha["output"])
+
+fpr, tpr, thresholds = metrics.roc_curve(ha["output"], preds)
+roc_auc = metrics.auc(fpr, tpr)
+
+display = metrics.RocCurveDisplay(fpr=fpr, tpr=tpr, roc_auc=roc_auc)
+display.plot()
+plt.show()
+```
+
+# Part Two: Metrics
+
+Consider the following metrics:
+
+* **True Positive Rate** or **Recall** or **Sensitivity** = Of the observations that are truly Class A, how many were predicted to be Class A?
+
+* **Precision** or **Positive Predictive Value** = Of all the observations classified as Class A, how many of them were truly from Class A?
+
+* **True Negative Rate** or **Specificity** or **Negative Predictive Value** = Of all the observations classified as NOT Class A, how many were truly NOT Class A?
+
+Compute each of these metrics (cross-validated) for your four models in Part One.
+
+Hint: You can specify which metrics you want to calculate as follows:
+
+
+```{python}
+cross_val_score(my_pipeline, ha[["????"]], ha["output"], scoring="roc_auc", cv=cross_validation)
+```
+
+# Part Three:  Discussion
+
+Suppose you have been hired by a hospital to create classification models for heart attack risk.
+
+The following questions give a possible scenario for why the hospital is interested in these models.  For each one, discuss:
+
+* Which metric(s) you would use for model selection and why.
+
+* Which of your final models (Part One Q1-4) you would recommend to the hospital, and why.
+
+* What score you should expect for your chosen metric(s) using your chosen model to predict future observations.
+
+#### Q1
+
+The hospital faces severe lawsuits if they deem a patient to be low risk, and that patient later experiences a heart attack.
+
+#### Q2
+
+The hospital is overfull, and wants to only use bed space for patients most in need of monitoring due to heart attack risk.
+
+#### Q3
+
+The hospital is studying root causes of heart attacks, and would like to understand which biological measures are associated with heart attack risk.
+
+#### Q4
+
+The hospital is training a new batch of doctors, and they would like to compare the diagnoses of these doctors to the predictions given by the algorithm to measure the ability of new doctors to diagnose patients.
+
+# Part Four: Validation
+
+Before sharing the dataset with you, I set aside a random 10% of the observations to serve as a final validation set.
+
+
+```{python}
+ha_validation <- pd.read_csv("https://www.dropbox.com/s/jkwqdiyx6o6oad0/heart_attack_validation.csv?dl=1")
+```
+
+
+```{python}
+ha_validation["sex"] = ha_validation["sex"].astype("category")
+ha_validation["cp"] = ha_validation["cp"].astype("category")
+ha_validation["restecg"] = ha_validation["restecg"].astype("category")
+ha_validation["output"] = ha_validation["output"].astype("category")
+ha_validation.output.cat.categories = [1,0] # make 1 be "at risk"
+
+ha_validation = ha_validation.dropna()
+```
+
+Use each of your final models in Part One Q1-4, predict the `output` variable in the validation dataset.
+
+For each, output a confusion matrix, and report the `roc.auc`, the `precision`, and the `recall`.
+
+Compare these values to the cross-validated estimates you reported in Part One and Part Two.  Did our measure of model success turn out to be approximately correct for the validation data?
+
+# Challenges:  
+
+## Challenge 1: Cohen's Kappa
+
+Another common metric used in classification is Cohen's Kappa.
+
+For **5 Challenge Points**, use online resources to research this measurement. Calculate it for the models from Part One, Q1-4, and discuss reasons or scenarios that would make us prefer to use this metric as our measure of model success.
+
+## Challenge 2:  Multiple categories
+
+Suppose that instead of predicting the heart attack risk, we were trying to predict the type of chest pain experienced by an individual (`cp`).
+
+For **5 Challenge Points**: 
+
+Try fitting each of the four types of models to predict `cp`.  Which ones work, and which ones do not?  Give an intuition for why this is true.  
+
+For **5 more Challenge Points**: 
+
+For the models that worked, which metrics make sense to measure model success, and which do not?  Why?
+
